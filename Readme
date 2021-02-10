@@ -32,6 +32,7 @@ Structure:
          date - date of updating numbering tables
          ver_base - version of the numbering base
          ver_tables - active version of tables 
+         
  - conf
     - conf.py
        Script settings:
