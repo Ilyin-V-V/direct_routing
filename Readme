@@ -1,0 +1,154 @@
+Purpose:
+ Call routing by region code
+Structure:
+ - base:
+   - import.sh
+     - Importing tables into the database
+   - postgres.py
+     - Module for working with b.d postgres
+   - Tables:
+     - tbl_direct_route_ABC-3xx_master.sql
+        Master table for ABC-3xx numbering
+     - tbl_direct_route_ABC-3xx_slave.sql
+        Guided numbering table ABC-3xx
+     - tbl_direct_route_ABC-4xx_master.sql
+        Master table for ABC-4xx numbering
+     - tbl_direct_route_ABC-4xx_slave.sql
+        Led table for numbering ABC-4xx
+     - tbl_direct_route_ABC-8xx_master.sql
+        Master table for ABC-8xx numbering
+     - tbl_direct_route_ABC-8xx_slave.sql
+        Guided numbering table ABC-8xx
+     - tbl_direct_route_DEF-9xx_master.sql
+        Master table for DEF-9xx numbering
+     - tbl_direct_route_DEF-9xx_slave.sql
+        DEF-9xx numbering guide
+
+     - tbl_direct_route_region.sql
+        Table with data of branches of presence
+     - tbl_direct_route_system.sql
+        Table with data for scripts where:
+         version - unmodifiable parameter
+         date - date of updating numbering tables
+         ver_base - version of the numbering base
+         ver_tables - active version of tables 
+ - conf
+    - conf.py
+       Script settings:
+        Path:
+         path - path to structure
+         path_log - path to logs
+         path_tmp - path to files for zabbix
+        Http:
+         rossvyaz_url - URL rossvyaz
+         proxy - proxy address
+        Postgres:
+         pg_host - server
+         pg_port - server port
+         pg_base - base
+         pg_user - user
+         pg_password - password
+         pg_portion - number of lines to send
+                      for one iteration into the table b.d
+         pg_sleep - timeout between data inserts,
+                      regulates the load on the host
+         pg_master_tabl - postgres database master tables
+         pg_slave_tabl - postgres database slave tables
+
+ - routing
+     Region code routing module
+    - routing.py parameter phone number
+      Logics:
+       - Get version of b.d tables
+       - Find numbering table based on number code
+       - Find region by number
+       - Determine if there is a branch in the found region
+
+  - download
+    - folder for loading and storing csv c rossvyaz
+
+ - interface
+      Interface module
+    - interface.py keys install, upload, load, update
+       install - downloads csv files, fills tables with data,
+        populates the tbl_direct_route_system table
+       upload - upload csv files
+       load - fills master numbering tables
+       update - performs upload and load
+       route - find a branch of presence by number
+    - auto.sh
+      Routing stress test - 12942 numbers in 1.5 hours
+
+ - load_base
+     Module for filling non-number tables from csv files
+   - load_base.py keys install, load;
+     install - Unconditional installation
+     load - Load tables b.d, work according to logic
+     Logics:
+      - Recognize files according to numbering
+      - Get version of b.d tables
+      - Load data into b.d tables based on the version of b.d tables
+        (i.e. if master then load slave or otherwise)
+      - Check that the loaded data is in the range from / to 500 lines
+        which indicates that the data is ready to go
+      - Switch database tables to work by changing the version of database tables
+      - Update database version
+     
+ - log
+    - logger.py
+      Logging module:
+       upload.log - csv files upload module log
+       load_base.log - log of the module for loading numbering tables
+       route.log - regional routing module log
+       postgres.log - postgres module log
+
+ - tmp
+      Numeracii.tmp file for zabbix monitoring trigger
+      0 - loading new information into b.d is successful
+      1 - problem loading or switching to active tables
+
+ - upload
+      Csv file upload module with rossvyaz
+    - upload.py keys install, upload;
+      install - In fact, only download files, issue a version
+      upload - Download files, work according to logic
+      Logics:
+       - Find on the Rossvyaz website the date of modification of the csv files
+       - Compare the version with the current version in the database
+       - If the version has changed find links and download new csv files
+       - Check that the files have been downloaded by changing the mtime file
+       - At the output, give either True, version, otherwise False, None
+
+Installation:
+ 1. Fix the file /base/import.sh by setting the variables:
+    base - b.d name; user - postgres username
+ 2. Import numbering tables
+    /base/import.sh table_name
+ 3. Create a b.d user to work with scripts with intent tables
+    and issue access rights to numbering tables
+    GRANT ALL ON table TO user
+ 4. Configure /conf/conf.py for variables to work see above
+ 5. Install python (tested on version 2.7)
+    and dependencies, for Centos:
+    yum install postgresql-devel python-devel gcc
+    pip install psycopg2 requests beautifulsoup4
+ 6. Perform the initial installation using the command interface.py install
+ 7. Fill in the tbl_direct_route_region table
+    insert into tbl_direct_route_region (region, code) values ​​('Sverdlovsk region', 'central');
+    or /base/import.sh tbl_data_route_region.sql
+ 8. Create log files:
+    - load_base.log, postgres.log, route.log, upload.log
+ 9. Create a file for monitoring zabbix
+    ./tmp/numeracii.tmp
+
+Job:
+ - intarface.py install
+    - Installation
+ - intarface.py upload
+    - Download csv files from Rossvyaz
+ - intarface.py load
+    - Load numbering data into tables b.d
+ - intarface.py update
+    - Download csv files and load numbering data into b.d tables
+ - intarface.py route phone_number
+    - Find branch presence by number
